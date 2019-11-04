@@ -1,5 +1,10 @@
 package com.group4.macfms.model;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+import com.group4.macfms.data.MarDAO;
+
 public class Mar {
 	private String marNumber;
 	private String facilityType;
@@ -12,6 +17,11 @@ public class Mar {
 	private String assignedDate;
 	private String estimatedTime;
 	private String marStatus;
+	
+	// These variables are for Rule Check Validations
+	private boolean repairerAvailable;
+	private int marCountsPerDay;
+	private int marCountPerWeek;
 	private int marStatusCode;
 	
 	
@@ -99,6 +109,33 @@ public class Mar {
 		this.marStatus = marStatus;
 	}
 	
+	
+	public boolean isRepairerAvailable() {
+		return repairerAvailable;
+	}
+
+	public void setRepairerAvailable(boolean repairerAvailable) {
+		this.repairerAvailable = repairerAvailable;
+	}
+
+	public int getMarCountsPerDay() {
+		return marCountsPerDay;
+	}
+
+	public void setMarCountsPerDay(int marCountsPerDay) {
+		this.marCountsPerDay = marCountsPerDay;
+	}
+
+	public int getMarCountPerWeek() {
+		return marCountPerWeek;
+	}
+
+	public void setMarCountPerWeek(int marCountPerWeek) {
+		this.marCountPerWeek = marCountPerWeek;
+	}
+
+	
+	
 	public int getMarStatusCode() {
 		return marStatusCode;
 	}
@@ -113,13 +150,21 @@ public class Mar {
 	}
 	
 	public  String validateDescription(String description) {
-		String result = "";
-		if(description.equals("")) {
-			result = "Please provide us the description of the problem";
-//			return "Please provide us the description of the problem";
-		}
-		return result;
-	}
+        String result;
+        if(description.isEmpty()) {
+                result =  "Please provide us the description of the problem";
+//            return "Please provide us the description of the problem";
+        }
+       
+        else if(description.length()>50) {
+                result =  "Description length should not exceed 50 characters";
+        }
+        else {
+        	result = "";
+        }
+       
+        return result;
+    }
 	
 	
 	public void validateAssignedTo(Mar mar, MarErrorMsgs errorMsg) {
@@ -128,11 +173,52 @@ public class Mar {
 	}
 	
 	public  String validateAssignedTo(String assignedTo) {
-		String result = "";
+		String result;
 		if(assignedTo.equals(""))
 			result =  "Please provide the repairer name to assign the MAR";
+		else 
+			result = "";
 		return result;
 	}
+	
+	
+	
+	public void validateAssignRuleCheck(Mar mar, MarErrorMsgs errorMsg) {
+		errorMsg.setAssignRuleCheckError(validateAssignRuleCheck(mar));
+		
+	}
+	
+	public  String validateAssignRuleCheck(Mar mar) {
+		String result = "";
+		
+		// checks if repairer exists in DB and is available today based on his his schedule
+		Date now = new Date();
+		SimpleDateFormat simpleDateformat = new SimpleDateFormat("EEEE"); // the day of the week spelled out completely
+        String day = simpleDateformat.format(now);
+        
+		boolean userAvailable = MarDAO.checkUniqueUsername(mar.getAssignedTo(), day);
+		mar.setRepairerAvailable(userAvailable);
+		
+		
+		
+		if (mar.isRepairerAvailable() && mar.getMarCountsPerDay() < 5  && mar.getMarCountPerWeek() < 10) {
+			mar.setMarStatus("Assigned");
+			result = "Mar has been assigned to the repairer "+mar.getAssignedTo();
+		} else if (!mar.isRepairerAvailable()) {
+			mar.setMarStatus("Unassigned");
+			result = "No such user found";
+		} else if (mar.getMarCountsPerDay() >= 5  && mar.getMarCountPerWeek() < 10) {
+			mar.setMarStatus("Unassigned");
+			result = "The repairer has exceeded 5 counts per day";
+		} else {
+			mar.setMarStatus("Unassigned");
+			result = "The repairer has exceeded 10 counts per week";
+		} 
+		
+		
+		return result;
+	}
+	
 	
 	public void validateAssignedToStatus(Mar mar, MarErrorMsgs errorMsg, int status) {
 		errorMsg.setAssignMarError(validateAssignedToStatus(mar,status));
